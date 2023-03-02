@@ -6,6 +6,28 @@ var User = mongoose.model("User");
 var auth = require("../auth");
 const { sendEvent } = require("../../lib/event");
 
+
+
+// function to generate image
+async function generateImage(prompt) {
+  return await axios.post('https://api.openai.com/v1/images/generations', JSON.stringify({
+      'prompt': `${prompt}`,
+      'n': 1,
+      'size': '256x256'
+  }), {
+      headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      }
+  }).then(function (response) {
+      return response.data.data[0].url;
+  })
+      .catch(function (error) {
+          console.log(`Image genrator failed with the error: ${error}`)
+          return '';
+      });
+  }
+
 // Preload item objects on routes with ':item'
 router.param("item", function(req, res, next, slug) {
   Item.findOne({ slug: slug })
@@ -95,6 +117,20 @@ router.get("/", auth.optional, function(req, res, next) {
       });
     })
     .catch(next);
+});
+
+router.post("/", auth.required, async function(req, res, next) {
+  User.findById(req.payload.id)
+    .then(async function(user) {
+
+      var item = new Item(req.body.item);
+      item.seller = user;
+
+      if(!item.image){
+        item.image = await generateImage(item.title);
+      }
+
+    })
 });
 
 router.get("/feed", auth.required, function(req, res, next) {
@@ -331,5 +367,7 @@ router.delete("/:item/comments/:comment", auth.required, function(
     res.sendStatus(403);
   }
 });
+
+
 
 module.exports = router;
